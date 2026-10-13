@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b2442"><title>ClipMap · Vietflex Satellite Clip GIS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<link rel="stylesheet" href="https://unpkg.com/vietflexmap@1.0.2/dist/vietflexmap.css">
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font:14px system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#172b49}body{display:flex;flex-direction:column;background:#f3f6fb}header{height:61px;background:#fff;border-bottom:1px solid #dbe3ee;display:flex;align-items:center;justify-content:space-between;padding:0 21px;gap:8px}header strong{font-size:20px;color:#173f79}header small{color:#68788c}a{color:#195ba0}.layout{display:grid;grid-template-columns:320px minmax(0,1fr);flex:1;min-height:0}aside{padding:17px;background:#fff;border-right:1px solid #dbe3ee;overflow:auto}#map{height:100%;width:100%;background:#dce8dd}.mapwrap{position:relative;min-height:300px}.group{border-bottom:1px solid #e5ebf2;padding-bottom:16px;margin-bottom:16px}.group h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#1d4e86}label{display:block;font-size:13px;margin:10px 0 5px}select,input[type=file],input[type=color],input[type=range]{width:100%}select,input[type=file]{padding:10px;border:1px solid #cbd6e4;border-radius:9px;background:white}button,.button{border:1px solid #c6d4e6;border-radius:9px;background:#fff;color:#1d4e86;cursor:pointer;padding:10px 12px;font-weight:650;text-decoration:none;display:inline-flex;justify-content:center;align-items:center;gap:6px}button:hover,.button:hover{background:#eef5ff}button.primary{background:#155caa;color:#fff;border-color:#155caa}button.primary:hover{background:#124d8d}.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.full{width:100%;margin:6px 0}.meter{display:flex;justify-content:space-between;color:#5d6b7e}.hint{font-size:12px;color:#63738a;line-height:1.55}.pill{padding:5px 9px;background:#edf6ff;border-radius:30px;font-size:12px;color:#285a82}.status{position:absolute;bottom:22px;left:18px;background:#fff;border:1px solid #e0e7f0;box-shadow:0 4px 22px #0d2d4824;max-width:calc(100% - 36px);border-radius:10px;padding:10px 14px;z-index:1000;font-size:12px}.foot{font-size:11px;color:#69788a;line-height:1.6}.leaflet-top.leaflet-right{top:8px}.leaflet-control-attribution{font-size:10px!important}input[type=range]{accent-color:#1667ba}#fallback{display:none;padding:9px;background:#fff3d9;color:#895a00;border-radius:8px;margin-bottom:10px}@media(max-width:750px){header{padding:0 12px;height:55px}header strong{font-size:17px}header small{display:none}.layout{display:flex;flex-direction:column}aside{max-height:45vh;order:2;border-right:0;border-top:1px solid #ddd}.mapwrap{min-height:55vh;order:1;flex:1}}
+</style></head><body>
+<header><div><strong>◈ ClipMap</strong> <span class="pill">Vietflexmap 1.0.2</span><br><small>Satellite Clip GIS · Biên tập ranh giới và ảnh vệ tinh</small></div><a href="https://github.com/xulytiengviet/clipmap" target="_blank" rel="noopener">GitHub ↗</a></header>
+<div class="layout"><aside>
+<div id="fallback"></div>
+<section class="group"><h3>01 · Lớp bản đồ</h3><label for="basemap">Bản đồ nền</label><select id="basemap"><option value="vietflex">Vietflexmap (lõi 1.0.2)</option><option value="sat">Vệ tinh Esri World Imagery</option><option value="osm">OpenStreetMap</option></select><p class="hint">Ảnh vệ tinh là dịch vụ trực tuyến. Quyền xuất ảnh phụ thuộc giấy phép và chính sách CORS của nhà cung cấp.</p></section>
+<section class="group"><h3>02 · Ranh giới cắt</h3><label for="file">Tải GeoJSON ranh giới (Polygon/MultiPolygon)</label><input id="file" type="file" accept=".json,.geojson,application/json"><div class="actions"><button id="draw">✎ Vẽ vùng</button><button id="clear">✕ Xóa vùng</button></div><p class="hint">Dùng công cụ đa giác trên bản đồ hoặc tải GeoJSON. Có thể tải ranh giới từ <a href="https://github.com/Vietflexmap/anhmap" target="_blank" rel="noopener">ẢnhMap ↗</a>. Dữ liệu phải ở WGS84 (EPSG:4326).</p><div id="featureinfo" class="pill">Chưa có ranh giới</div></section>
+<section class="group"><h3>03 · Hiệu ứng cắt</h3><label for="opacity">Làm mờ vùng ngoài <span id="opval">78%</span></label><input id="opacity" type="range" min="0" max="100" value="78"><label for="color">Màu đường viền</label><input id="color" type="color" value="#db9a26"><label for="weight">Độ dày viền <span id="wtval">2 px</span></label><input id="weight" type="range" min="1" max="8" value="2"><label><input id="maskon" type="checkbox" checked> Bật mặt nạ ngoài ranh giới</label></section>
+<section class="group"><h3>04 · Xuất kết quả</h3><button class="primary full" id="png">⬇ Xuất PNG bản đồ</button><button class="full" id="geojson">⬇ Xuất GeoJSON ranh giới</button><button class="full" id="zoom">⌖ Phóng đến vùng cắt</button><p class="hint">PNG được kết xuất trên trình duyệt và chỉ bao gồm tile cho phép CORS. Nếu nhà cung cấp chặn, hãy đổi lớp nền. Đây là clipping hiển thị, không phải GeoTIFF phân tích.</p></section>
+<div class="foot">© 2026 Long Ngo · MIT. Ranh giới tham khảo không có giá trị pháp lý. Nguồn ranh giới: <a href="https://github.com/Vietflexmap/anhmap">Vietflexmap/anhmap</a> (người dùng tự chọn/tải). © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>; Esri/Maxar và các nhà cung cấp tương ứng.</div>
+</aside><main class="mapwrap"><div id="map"></div><output class="status" id="status" aria-live="polite">Đang khởi tạo bản đồ…</output></main></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/vietflexmap@1.0.2/dist/vietflexmap.js"></script>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id),status=t=>$('status').textContent=t;
+let map,selected=null,mask=null,outline=null,drawControl=null,currentLayer=null;
+const bases={
+osm:{url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',att:'© OpenStreetMap contributors'},
+sat:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',att:'Tiles © Esri, Maxar, Earthstar Geographics'},
+vietflex:{url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',att:'© OpenStreetMap contributors'}
+};
+function init(){
+try{
+ if(window.Vietflex && typeof Vietflex.vietflexMap==='function'){
+ const x=Vietflex.vietflexMap('map',{center:[16.2,107.7],zoom:6,zoomControl:false});
+ map=x&&x.map&&x.map.getContainer?x.map:x;
+ if(!map||typeof map.addLayer!=='function')throw new Error('Lõi không trả về bản đồ Leaflet tương thích');
+ status('Đã khởi tạo lõi Vietflexmap 1.0.2.');
+ }else throw new Error('Không nạp được Vietflexmap 1.0.2');
+}catch(err){
+ $('fallback').style.display='block';$('fallback').textContent='Không khởi tạo được lõi Vietflexmap: '+err.message+'; đang dùng bộ hiển thị Leaflet dự phòng.';
+ map=L.map('map',{center:[16.2,107.7],zoom:6,zoomControl:false});
+ status('Đang dùng trình hiển thị dự phòng do lõi không khả dụng.');
+}
+L.control.zoom({position:'topright'}).addTo(map);L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
+map.createPane('maskPane');map.getPane('maskPane').style.zIndex=460;map.createPane('linePane');map.getPane('linePane').style.zIndex=470;
+setBase($('basemap').value);
+map.on('click',e=>{if(!selected)status('Chọn “Vẽ vùng” hoặc tải GeoJSON để cắt ảnh.');});
+}
+function setBase(name){
+if(currentLayer)map.removeLayer(currentLayer);
+if(name==='vietflex'){
+ // Preserve base layers installed by Vietflex core when available.
+ const exists=[];map.eachLayer(l=>{if(l instanceof L.TileLayer)exists.push(l)});
+ if(window.Vietflex&&exists.length){currentLayer=exists[0];status('Đang dùng nền từ Vietflexmap 1.0.2');return}
+}
+const b=bases[name]||bases.osm;currentLayer=L.tileLayer(b.url,{maxZoom:19,crossOrigin:'anonymous',attribution:b.att}).addTo(map);
+}
+function flatten(data){
+const feats=data.type==='FeatureCollection'?data.features:data.type==='Feature'?[data]:[{type:'Feature',properties:{},geometry:data}];
+const arr=[];
+for(const f of feats){if(!f||!f.geometry)continue;const g=f.geometry;if(g.type==='Polygon')arr.push(g.coordinates);if(g.type==='MultiPolygon')arr.push(...g.coordinates);}
+if(!arr.length)throw Error('Dữ liệu không chứa Polygon hoặc MultiPolygon');
+return arr;
+}
+function select(data,fit=true){
+const polys=flatten(data);
+let count=0;
+for(const p of polys)for(const r of p){if(!Array.isArray(r)||r.length<4)throw Error('Polygon không hợp lệ');for(const xy of r){if(!Array.isArray(xy)||!Number.isFinite(xy[0])||!Number.isFinite(xy[1])||Math.abs(xy[0])>180||Math.abs(xy[1])>90)throw Error('Tọa độ phải ở WGS84 [kinh độ,vĩ độ]');count+=1;if(count>1000000)throw Error('Dữ liệu quá lớn');}}
+selected={type:'FeatureCollection',features:polys.map((coordinates,i)=>({type:'Feature',properties:{index:i+1},geometry:{type:'Polygon',coordinates}}))};
+render();if(fit)zoom();$('featureinfo').textContent=polys.length+' polygon · '+count+' đỉnh';status('Đã nạp '+polys.length+' polygon. Có thể cắt ảnh trực tiếp.');
+}
+function render(){
+if(mask)map.removeLayer(mask);if(outline)map.removeLayer(outline);mask=outline=null;
+if(!selected)return;
+const opts={color:$('color').value,weight:+$('weight').value,fillOpacity:0,interactive:false,pane:'linePane'};
+outline=L.geoJSON(selected,{style:opts}).addTo(map);
+if(!$('maskon').checked)return;
+const outer=[[85,-180],[85,180],[-85,180],[-85,-180],[85,-180]];
+const holes=flatten(selected).map(p=>p[0].map(x=>[x[1],x[0]]));
+mask=L.polygon([outer,...holes],{stroke:false,fillColor:'#ffffff',fillOpacity:+$('opacity').value/100,fillRule:'evenodd',interactive:false,pane:'maskPane'}).addTo(map);
+}
+function zoom(){if(!outline)return status('Chưa chọn ranh giới.');const bounds=outline.getBounds();if(bounds.isValid())map.fitBounds(bounds.pad(.12),{maxZoom:15});}
+function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1200);}
+function startDraw(){status('Nhấp các đỉnh polygon; nhấp đỉnh đầu để kết thúc.');const drawer=new L.Draw.Polygon(map,{allowIntersection:false,showArea:true,shapeOptions:{color:'#db9a26'}});drawer.enable();}
+$('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>30*1024*1024)throw Error('Tệp quá 30 MB');select(JSON.parse(await f.text()));}catch(err){status('Lỗi GeoJSON: '+err.message);}e.target.value='';});
+$('draw').onclick=startDraw;
+map?.on('draw:created',()=>{});
+$('clear').onclick=()=>{selected=null;if(mask)map.removeLayer(mask);if(outline)map.removeLayer(outline);mask=outline=null;$('featureinfo').textContent='Chưa có ranh giới';status('Đã xóa vùng cắt.');};
+$('zoom').onclick=zoom;
+$('basemap').onchange=e=>setBase(e.target.value);
+$('opacity').oninput=e=>{$('opval').textContent=e.target.value+'%';render();};
+$('weight').oninput=e=>{$('wtval').textContent=e.target.value+' px';render();};
+$('color').oninput=render;$('maskon').onchange=render;
+$('geojson').onclick=()=>{if(!selected)return status('Chưa có ranh giới để xuất.');download(new Blob([JSON.stringify(selected,null,2)],{type:'application/geo+json'}),'clipmap-boundary.geojson');};
+$('png').onclick=async()=>{
+status('Đang kết xuất PNG…');
+try{
+ const m=map.getSize(),c=document.createElement('canvas');c.width=Math.round(m.x*devicePixelRatio);c.height=Math.round(m.y*devicePixelRatio);
+ const ctx=c.getContext('2d');ctx.scale(devicePixelRatio,devicePixelRatio);ctx.fillStyle='#eef2ef';ctx.fillRect(0,0,m.x,m.y);
+ const z=map.getZoom(),origin=map.getPixelOrigin(),tiles=[];
+ map.eachLayer(l=>{if(l instanceof L.TileLayer && map.hasLayer(l)){const els=l.getContainer()?.querySelectorAll('img.leaflet-tile')||[];for(const im of els){if(!im.complete||!im.naturalWidth)continue;const point=L.DomUtil.getPosition(im),containerPoint=map.layerPointToContainerPoint(point);tiles.push({im,x:containerPoint.x,y:containerPoint.y,w:im.width||256,h:im.height||256});}}});
+ if(!tiles.length)throw Error('Lớp nền chưa tải xong.');
+ for(const t of tiles)ctx.drawImage(t.im,t.x,t.y,t.w,t.h);
+ if(selected){
+  const drawRing=ring=>{ring.forEach((co,i)=>{const p=map.latLngToContainerPoint([co[1],co[0]]);if(i)ctx.lineTo(p.x,p.y);else ctx.moveTo(p.x,p.y)});ctx.closePath();};
+  if($('maskon').checked){ctx.beginPath();ctx.rect(0,0,m.x,m.y);for(const p of flatten(selected))drawRing(p[0]);ctx.fillStyle='rgba(255,255,255,'+(+$('opacity').value/100)+')';ctx.fill('evenodd');}
+  ctx.beginPath();for(const p of flatten(selected))for(const ring of p)drawRing(ring);
+  ctx.strokeStyle=$('color').value;ctx.lineWidth=+$('weight').value;ctx.stroke();
+ }
+ ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(0,m.y-28,m.x,28);ctx.fillStyle='#263a50';ctx.font='11px system-ui';ctx.fillText('ClipMap · © 2026 Long Ngo · Nền: '+($('basemap').selectedOptions[0].textContent)+' · Bản đồ tham khảo',9,m.y-9);
+ await new Promise((res,rej)=>c.toBlob(b=>b? (download(b,'clipmap-satellite.png'),res()):rej(Error('Không thể xuất canvas; tile nền có thể bị chặn CORS')),'image/png'));
+ status('Đã tạo PNG.');
+}catch(err){status('Không thể xuất PNG: '+err.message+'. Hãy thử lớp nền có CORS hoặc dùng chụp màn hình.');}
+};
+init();
+map.on(L.Draw.Event.CREATED,e=>{const geometry=e.layer.toGeoJSON();try{select(geometry);}catch(err){status(err.message);}});
+})();
+</script></body></html>

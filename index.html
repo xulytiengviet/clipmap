@@ -128,43 +128,66 @@ try{
  status('Đã tạo PNG.');
 }catch(err){status('Không thể xuất PNG: '+err.message+'. Hãy thử lớp nền có CORS hoặc dùng chụp màn hình.');}
 };
-function getProp(f,keys){const p=f.properties||{};for(const k of keys){const v=p[k];if(v!=null&&String(v).trim())return String(v).trim();}return ''}
-const provinceKeys=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','name_1'];
-const communeKeys=['ten_xa','Ten_Xa','TEN_XA','xa','phuong','commune','commune_name','NAME_2','TENXA','tenXa','name_2'];
-const provinceCodes=['ma_tinh','MATINH','maTinh','province_code','code_1'];
+function getProp(f,keys){const p=f.properties||{};for(const k of keys){const v=p[k];if(v!=null&&String(v).trim())return String(v).trim()}return ''}
+const provinceKeys=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','name_1','name','Name','NAME','TEN','Ten','ten','Tỉnh','Tỉnh Thành','Province','provinceName','TEN_TP','Ten_TP','ten_tp'];
+const communeKeys=['ten_xa','Ten_Xa','TEN_XA','xa','phuong','commune','commune_name','NAME_2','TENXA','tenXa','name_2','name','Name','NAME','TEN','Ten','ten','ward_name','wardName','TenDVHC','ten_dvhc'];
+const provinceCodes=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode'];
+const wardProvinceCodes=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode'];
+let provinceFeatures=[],wardFeatures=null,wardPromise=null;
 function uniqueSorted(a){return [...new Set(a.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'))}
-function populateSelect(id,values,first){$(id).innerHTML='';const o=new Option(first,'');$(id).add(o);values.forEach(v=>$(id).add(new Option(v,v)));$(id).disabled=!values.length}
-function normalizeAdmin(raw){const feats=raw.type==='FeatureCollection'?raw.features:raw.type==='Feature'?[raw]:[];return feats.filter(f=>f&&f.geometry&&['Polygon','MultiPolygon'].includes(f.geometry.type));}
-function resetCommune(){const p=$('province').value;const communes=uniqueSorted(adminFeatures.filter(f=>getProp(f,provinceKeys)===p).map(f=>getProp(f,communeKeys)));populateSelect('commune',communes,communes.length?'Toàn bộ tỉnh/thành':'Không có cấp xã trong dữ liệu');$('clipadmin').disabled=!p;}
-$('province').onchange=()=>{resetCommune();};
+function populateSelect(id,values,first){$(id).innerHTML='';$(id).add(new Option(first,''));values.forEach(v=>$(id).add(new Option(v,v)));$(id).disabled=!values.length}
+function normalizeAdmin(raw){const feats=raw.type==='FeatureCollection'?raw.features:raw.type==='Feature'?[raw]:[];return feats.filter(f=>f&&f.geometry&&['Polygon','MultiPolygon'].includes(f.geometry.type))}
+function lookupProvince(f){return getProp(f,provinceKeys)}
+function locateWardProvince(f){return getProp(f,provinceKeys.filter(k=>!['name','Name','NAME','TEN','Ten','ten'].includes(k)))}
+const host=ADMIN_R2_PUBLIC_URL.replace(/\\/+$/,'');
+async function getObject(key){const url=host+'/'+key.split('/').map(encodeURIComponent).join('/');const res=await fetch(url,{mode:'cors'});if(!res.ok)throw Error('HTTP '+res.status+' · '+key);return await res.json()}
 async function loadAdmin(){
-const host=ADMIN_R2_PUBLIC_URL.replace(/\/+$/,''),file=ADMIN_R2_OBJECT_PATH.replace(/^\/+/, '');
 try{
- if(!/^https:\/\/[^/]+$/.test(host))throw Error('Thiếu Public URL R2 trong config.js');
- if(!file||file.includes('..')||file.includes('?'))throw Error('Chưa cấu hình đúng đường dẫn GeoJSON trong config.js');
- status('Đang tìm dữ liệu hành chính trên R2…');
- const candidates=[file,'ranhgioi.geojson','ranhgioi.json','tinh.geojson','tinh_2025.geojson','VN_Dia_Phan_Tinh_2025.geojson','hanhchinh.geojson','admin.geojson','data/ranhgioi.geojson','data/tinh.geojson'];
- let raw=null,found='',lastCode='';
- for(const candidate of [...new Set(candidates)]){
-   try{
-     const res=await fetch(host+'/'+candidate,{mode:'cors',cache:'no-cache'});
-     lastCode=String(res.status);
-     if(!res.ok)continue;
-     const candidateData=await res.json();
-     if(normalizeAdmin(candidateData).length){raw=candidateData;found=candidate;break}
-   }catch(e){lastCode=e.message}
- }
- if(!raw)throw Error('Không tìm thấy GeoJSON công khai trong các đường dẫn đã thử (mã cuối: '+lastCode+'). Cần đúng tên tệp trong R2 → Objects.');
- const fs=normalizeAdmin(raw);if(!fs.length)throw Error('Không tìm thấy Polygon trong FeatureCollection');
- adminFeatures=fs;provinceNames=uniqueSorted(fs.map(f=>getProp(f,provinceKeys)));if(!provinceNames.length)throw Error('Không tìm thấy thuộc tính tên tỉnh; kiểm tra provinceKeys trong mã.');
- populateSelect('province',provinceNames,'Chọn tỉnh/thành');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;adminReady=true;
- $('adminload').textContent='Đã tải '+fs.length+' ranh giới · '+provinceNames.length+' tỉnh/thành · '+found;status('Đã đồng bộ dữ liệu hành chính.');
-}catch(err){adminReady=false;adminFeatures=[];populateSelect('province',[],'Chưa tải dữ liệu');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;$('adminload').textContent='Chưa kết nối dữ liệu hành chính';status('Chưa tải được ranh giới: '+err.message);}
-};
+if(!/^https:\\/\\/[^/]+$/.test(host))throw Error('Thiếu Public URL R2 trong config.js');
+$('adminload').textContent='Đang tải 34 tỉnh/thành…';
+const raw=await getObject(window.CLIPMAP_CONFIG.provinceObjectPath);
+provinceFeatures=normalizeAdmin(raw);
+if(!provinceFeatures.length)throw Error('Không tìm thấy polygon tỉnh/thành');
+provinceNames=uniqueSorted(provinceFeatures.map(lookupProvince));
+if(!provinceNames.length)throw Error('Không tìm thấy cột tên tỉnh; cần kiểm tra thuộc tính của GeoJSON');
+adminFeatures=provinceFeatures;adminReady=true;
+populateSelect('province',provinceNames,'Chọn tỉnh/thành');populateSelect('commune',[],'Chọn tỉnh trước');
+$('adminload').textContent='Đã tải '+provinceNames.length+' tỉnh/thành · cấp xã tải khi chọn tỉnh';
+status('Sẵn sàng cắt ranh giới tỉnh/thành.');
+}catch(err){adminReady=false;$('adminload').textContent='Chưa tải được tỉnh/thành';status('Chưa tải được ranh giới: '+err.message)}
+}
+async function ensureWards(){
+if(wardFeatures)return wardFeatures;
+if(wardPromise)return wardPromise;
+wardPromise=(async()=>{
+$('adminload').textContent='Đang tải dữ liệu cấp xã (193 MB), vui lòng đợi…';
+const raw=await getObject(window.CLIPMAP_CONFIG.wardObjectPath);
+wardFeatures=normalizeAdmin(raw);raw.features=null;
+$('adminload').textContent='Đã tải '+provinceNames.length+' tỉnh/thành và '+wardFeatures.length+' polygon cấp xã';
+return wardFeatures;
+})();
+try{return await wardPromise}catch(err){wardPromise=null;throw err}
+}
+async function resetCommune(){
+const p=$('province').value;
+populateSelect('commune',[],p?'Đang tải cấp xã…':'Chọn tỉnh trước');$('clipadmin').disabled=!p;
+if(!p)return;
+try{
+const wards=await ensureWards();
+if($('province').value!==p)return;
+const pf=provinceFeatures.find(f=>lookupProvince(f)===p);
+const code=pf?getProp(pf,provinceCodes):'';
+let sub=wards.filter(f=>locateWardProvince(f)===p||(code&&getProp(f,wardProvinceCodes)===code));
+if(!sub.length){status('Không tìm thấy mã liên kết xã/tỉnh: có thể chọn cắt cấp tỉnh.');populateSelect('commune',[],'Dữ liệu cấp xã chưa ghép được');return;}
+const communes=uniqueSorted(sub.map(f=>getProp(f,communeKeys)));
+populateSelect('commune',communes,'Toàn bộ tỉnh/thành');status('Đã tải '+communes.length+' đơn vị cấp xã của '+p);
+}catch(err){populateSelect('commune',[],'Không tải được cấp xã');status('Không thể tải cấp xã: '+err.message)}
+}
+$('province').onchange=()=>{resetCommune()};
 $('clipadmin').onclick=()=>{
  if(!adminReady)return status('Cần tải dữ liệu hành chính trước');
  const p=$('province').value,c=$('commune').value;if(!p)return status('Chọn tỉnh/thành');
- const f=adminFeatures.filter(x=>getProp(x,provinceKeys)===p&&(!c||getProp(x,communeKeys)===c));
+ const f=c?(wardFeatures||[]).filter(x=>(locateWardProvince(x)===p||getProp(x,wardProvinceCodes)===getProp(provinceFeatures.find(y=>lookupProvince(y)===p)||{},provinceCodes))&&getProp(x,communeKeys)===c):provinceFeatures.filter(x=>lookupProvince(x)===p);
  if(!f.length)return status('Không có polygon trùng đơn vị được chọn');
  try{select({type:'FeatureCollection',features:f});}catch(e){status(e.message);}
 };

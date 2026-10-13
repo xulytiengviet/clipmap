@@ -139,7 +139,11 @@ function collection(x){if(!x||x.type!=='FeatureCollection')throw Error('GeoJSON 
 async function loadAdmin(){
 try{
 $('adminload').textContent='Đang tải chỉ mục hành chính…';
-const idx=await getObject(window.CLIPMAP_CONFIG.indexObjectPath||'index.json');
+let idx=null, indexPath='';
+for(const candidate of [window.CLIPMAP_CONFIG.indexObjectPath||'index.json','provinces/index.json']){
+ try{idx=await getObject(candidate);indexPath=candidate;break;}catch(e){if(!String(e.message).includes('HTTP 404'))throw e;}
+}
+if(!idx)throw Error('Không thấy index.json tại gốc bucket hoặc provinces/. Hãy tải index.json lên gốc R2.');
 if(idx.schema!=='clipmap-r2-index-v1'||!Array.isArray(idx.provinces)||!Array.isArray(idx.wards))throw Error('Sai cấu trúc index.json');
 if(!idx.provinces.length||!idx.wards.length)throw Error('index.json không có dữ liệu');
 const codes=new Set(idx.provinces.map(p=>String(p.id)));
@@ -147,7 +151,7 @@ if(idx.wards.some(w=>!codes.has(String(w.provinceId))))throw Error('Mã tỉnh t
 provinceIndex=idx.provinces;wardsIndex=idx.wards;provinceByName=new Map(idx.provinces.map(p=>[p.name,p]));adminReady=true;
 populateSelect('province',provinceIndex,'Chọn tỉnh/thành');
 populateSelect('commune',[],'Chọn tỉnh trước');
-$('adminload').textContent='Đã lập chỉ mục '+provinceIndex.length+' tỉnh/thành · '+wardsIndex.length+' xã/phường';
+$('adminload').textContent='Đã lập chỉ mục '+provinceIndex.length+' tỉnh/thành · '+wardsIndex.length+' xã/phường'+(indexPath==='provinces/index.json'?' · cần chuyển index.json lên thư mục gốc':'');
 status('Đã tải chỉ mục, chưa cần tải các polygon.');
 }catch(err){
 adminReady=false;

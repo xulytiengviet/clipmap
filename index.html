@@ -87,7 +87,7 @@ const opts={color:$('color').value,weight:+$('weight').value,fillOpacity:0,inter
 outline=L.geoJSON(selected,{style:opts}).addTo(map);
 if(!$('maskon').checked)return;
 const outer=[[85,-180],[85,180],[-85,180],[-85,-180],[85,-180]];
-const holes=flatten(selected).map(p=>p[0].map(x=>[x[1],x[0]]));
+const holes=flatten(selected).flatMap(p=>p.map(r=>r.map(x=>[x[1],x[0]])));
 mask=L.polygon([outer,...holes],{stroke:false,fillColor:'#ffffff',fillOpacity:+$('opacity').value/100,fillRule:'evenodd',interactive:false,pane:'maskPane'}).addTo(map);
 }
 function zoom(){if(!outline)return status('Chưa chọn ranh giới.');const bounds=outline.getBounds();if(bounds.isValid())map.fitBounds(bounds.pad(.12),{maxZoom:15});}
@@ -109,6 +109,7 @@ if(target!=='EPSG:4326'){output.crs={type:'name',properties:{name:target}};}
 download(new Blob([JSON.stringify(output,null,2)],{type:'application/json'}),target==='EPSG:4326'?'clipmap-boundary.geojson':'clipmap-boundary-vn2000-'+target.split(':')[1]+'.json');
 }catch(err){status(err.message)}};
 $('png').onclick=async()=>{
+if(!selected){status('Hãy nhấn “Cắt theo đơn vị đã chọn” hoặc vẽ vùng trước khi xuất PNG.');return;}
 status('Đang kết xuất PNG…');
 try{
  const m=map.getSize(),c=document.createElement('canvas');c.width=Math.round(m.x*devicePixelRatio);c.height=Math.round(m.y*devicePixelRatio);
@@ -119,7 +120,7 @@ try{
  for(const t of tiles)ctx.drawImage(t.im,t.x,t.y,t.w,t.h);
  if(selected){
   const drawRing=ring=>{ring.forEach((co,i)=>{const p=map.latLngToContainerPoint([co[1],co[0]]);if(i)ctx.lineTo(p.x,p.y);else ctx.moveTo(p.x,p.y)});ctx.closePath();};
-  if($('maskon').checked){ctx.beginPath();ctx.rect(0,0,m.x,m.y);for(const p of flatten(selected))drawRing(p[0]);ctx.fillStyle='rgba(255,255,255,'+(+$('opacity').value/100)+')';ctx.fill('evenodd');}
+  if($('maskon').checked){ctx.beginPath();ctx.rect(0,0,m.x,m.y);for(const p of flatten(selected)){for(const ring of p)drawRing(ring);}ctx.fillStyle='rgba(255,255,255,'+(+$('opacity').value/100)+')';ctx.fill('evenodd');}
   ctx.beginPath();for(const p of flatten(selected))for(const ring of p)drawRing(ring);
   ctx.strokeStyle=$('color').value;ctx.lineWidth=+$('weight').value;ctx.stroke();
  }
@@ -176,7 +177,7 @@ if(!p.path||!/^provinces\/[A-Za-z0-9_-]+\.geojson$/.test(p.path))throw Error('Đ
 if(shardLoading&&shardLoading.pid!==pid)shardLoading.controller.abort();
 const controller=new AbortController();
 shardLoading={pid,controller};
-const paths=[p.path,indexPrefix+p.path,p.path.replace(/^provinces\//,'')];
+const paths=[p.path,indexPrefix+p.path,p.path.replace(/^provinces\//,''), 'provinces/provinces/'+p.id+'.geojson'];
 let geo=null,lastError='';
 for(const path of [...new Set(paths)]){
  const url=host+'/'+path.split('/').map(encodeURIComponent).join('/');
@@ -186,6 +187,7 @@ for(const path of [...new Set(paths)]){
 }
 if(!geo)throw Error('Không tìm thấy polygon ('+lastError+'). Kiểm tra đường dẫn trong R2.');
 const features=collection(geo);
+if(!features.length)throw Error('Tệp '+p.path+' không có polygon hợp lệ');
 shardCache.set(pid,features);
 if(shardCache.size>3)shardCache.delete(shardCache.keys().next().value);
 return features;
@@ -199,13 +201,13 @@ const fs=await getShard(pid);
 const p=provinceIndex.find(p=>String(p.id)===pid);
 let selectedFeatures=wid?fs.filter(f=>{
 const props=f.properties||{};
-const id=String(props.ma_xa??props.MA_XA??props.maxa??props.MaXa??props.matinhxa??props.ma??props.code??props.CODE??props.ward_code??props.MaDVHC??props.ma_dvhc??props.id??'');
+const id=String(props.ma??props.ma_xa??props.MA_XA??props.maxa??props.MaXa??props.code??props.CODE??props.ward_code??props.MaDVHC??props.ma_dvhc??props.id??props.matinhxa??'').trim();
 const name=String(props.ten_xa??props.Ten_Xa??props.TEN_XA??props.tenhc??props.xa??props.phuong??props.commune??props.commune_name??props.NAME_2??props.TENXA??props.tenXa??props.name??props.Name??props.NAME??props.TEN??props.Ten??props.ten??props.ward_name??props.wardName??'');
 const record=wardsIndex.find(w=>String(w.id)===wid&&String(w.provinceId)===pid);
-return id===wid||(record&&record.name===name);
+return id===wid||(record&&record.name.trim().normalize('NFC')===name.trim().normalize('NFC'));
 }):fs;
 if(!selectedFeatures.length)throw Error('Không ghép được polygon xã với mã trong chỉ mục');
-select({type:'FeatureCollection',features:selectedFeatures});status('Đã cắt '+(wid?'xã/phường':'tỉnh/thành')+': '+p.name);
+select({type:'FeatureCollection',features:selectedFeatures});status('Đã cắt '+(wid?'xã/phường':'tỉnh/thành')+': '+p.name+'. Sẵn sàng xuất PNG.');
 }catch(err){if(err.name!=='AbortError')status('Không thể cắt: '+err.message)}finally{$('clipadmin').disabled=false}
 };
 init();

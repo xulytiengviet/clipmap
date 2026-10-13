@@ -10,7 +10,7 @@
 <div class="layout"><aside>
 
 <section class="group"><h3>01 · Lớp bản đồ</h3><label for="basemap">Bản đồ nền</label><select id="basemap"><option value="sat" selected>Vệ tinh Esri World Imagery</option></select></section>
-<section class="group"><h3>02 · Cắt nhanh hành chính</h3><div id="adminload" class="hint" role="status">Đang kiểm tra dữ liệu hành chính…</div><label for="province">34 tỉnh/thành</label><select id="province" disabled><option>Chưa tải dữ liệu R2</option></select><label for="commune">3.321 xã/phường/đặc khu</label><select id="commune" disabled><option>Chọn tỉnh trước</option></select><button class="full" id="clipadmin" disabled>✂ Cắt theo đơn vị đã chọn</button></section><section class="group"><h3>03 · Ranh giới tự do</h3><label for="file">Tải ranh giới (GeoJSON hoặc VN-2000 JSON)</label><label for="crsin">Hệ tọa độ tệp nhập</label><select id="crsin"><option value="EPSG:4326">WGS84 (GeoJSON chuẩn)</option><option value="EPSG:3405">VN-2000 / UTM 48N (EPSG:3405)</option><option value="EPSG:3406">VN-2000 / UTM 49N (EPSG:3406)</option></select><input id="file" type="file" accept=".json,.geojson,application/json"><div class="actions"><button id="draw">✎ Vẽ vùng</button><button id="clear">✕ Xóa vùng</button></div><div id="featureinfo" class="pill" hidden></div></section>
+<section class="group"><h3>02 · Cắt nhanh hành chính</h3><div id="adminload" class="hint" role="status">Đang nạp chỉ mục hành chính…</div><label for="province">34 tỉnh/thành</label><select id="province" disabled><option>Chưa tải dữ liệu R2</option></select><label for="commune">3.321 xã/phường/đặc khu</label><select id="commune" disabled><option>Chọn tỉnh trước</option></select><button class="full" id="clipadmin" disabled>✂ Cắt theo đơn vị đã chọn</button></section><section class="group"><h3>03 · Ranh giới tự do</h3><label for="file">Tải ranh giới (GeoJSON hoặc VN-2000 JSON)</label><label for="crsin">Hệ tọa độ tệp nhập</label><select id="crsin"><option value="EPSG:4326">WGS84 (GeoJSON chuẩn)</option><option value="EPSG:3405">VN-2000 / UTM 48N (EPSG:3405)</option><option value="EPSG:3406">VN-2000 / UTM 49N (EPSG:3406)</option></select><input id="file" type="file" accept=".json,.geojson,application/json"><div class="actions"><button id="draw">✎ Vẽ vùng</button><button id="clear">✕ Xóa vùng</button></div><div id="featureinfo" class="pill" hidden></div></section>
 <section class="group"><h3>04 · Hiệu ứng cắt</h3><label for="opacity">Làm mờ vùng ngoài <span id="opval">78%</span></label><input id="opacity" type="range" min="0" max="100" value="78"><label for="color">Màu đường viền</label><input id="color" type="color" value="#db9a26"><label for="weight">Độ dày viền <span id="wtval">2 px</span></label><input id="weight" type="range" min="1" max="8" value="2"><label><input id="maskon" type="checkbox" checked> Bật mặt nạ ngoài ranh giới</label></section>
 <section class="group"><h3>05 · Xuất kết quả</h3><button class="primary full" id="png">⬇ Xuất PNG bản đồ</button><label for="crsout">Hệ tọa độ xuất</label><select id="crsout"><option value="EPSG:3405">VN-2000 / UTM 48N</option><option value="EPSG:3406">VN-2000 / UTM 49N</option><option value="EPSG:4326">WGS84 / GeoJSON</option></select><button class="full" id="geojson">⬇ Xuất dữ liệu ranh giới</button><button class="full" id="zoom">⌖ Phóng đến vùng cắt</button></section>
 <div class="foot">© 2026 Long Ngo · MIT.</div>
@@ -129,67 +129,73 @@ try{
 }catch(err){status('Không thể xuất PNG: '+err.message+'. Hãy thử lớp nền có CORS hoặc dùng chụp màn hình.');}
 };
 function getProp(f,keys){const p=f.properties||{};for(const k of keys){const v=p[k];if(v!=null&&String(v).trim())return String(v).trim()}return ''}
-const provinceKeys=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','name_1','name','Name','NAME','TEN','Ten','ten','Tỉnh','Tỉnh Thành','Province','provinceName','TEN_TP','Ten_TP','ten_tp'];
-const communeKeys=['ten_xa','Ten_Xa','TEN_XA','xa','phuong','commune','commune_name','NAME_2','TENXA','tenXa','name_2','name','Name','NAME','TEN','Ten','ten','ward_name','wardName','TenDVHC','ten_dvhc'];
-const provinceCodes=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode'];
-const wardProvinceCodes=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode'];
-let provinceFeatures=[],wardFeatures=null,wardPromise=null;
+const provinceKeys=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','name','Name','NAME','TEN','ten'];
+let provinceFeatures=[],wardsIndex=[],provinceIndex=[],shardCache=new Map(),provinceByName=new Map(),selectedWardId='',shardLoading=null;
 function uniqueSorted(a){return [...new Set(a.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'))}
-function populateSelect(id,values,first){$(id).innerHTML='';$(id).add(new Option(first,''));values.forEach(v=>$(id).add(new Option(v,v)));$(id).disabled=!values.length}
-function normalizeAdmin(raw){const feats=raw.type==='FeatureCollection'?raw.features:raw.type==='Feature'?[raw]:[];return feats.filter(f=>f&&f.geometry&&['Polygon','MultiPolygon'].includes(f.geometry.type))}
-function lookupProvince(f){return getProp(f,provinceKeys)}
-function locateWardProvince(f){return getProp(f,provinceKeys.filter(k=>!['name','Name','NAME','TEN','Ten','ten'].includes(k)))}
+function populateSelect(id,entries,placeholder){const el=$(id);el.replaceChildren(new Option(placeholder,''));for(const e of entries)el.add(new Option(e.name,e.id));el.disabled=!entries.length}
 const host=ADMIN_R2_PUBLIC_URL.endsWith('/')?ADMIN_R2_PUBLIC_URL.slice(0,-1):ADMIN_R2_PUBLIC_URL;
-async function getObject(key){const url=host+'/'+key.split('/').map(encodeURIComponent).join('/');const res=await fetch(url,{mode:'cors'});if(!res.ok)throw Error('HTTP '+res.status+' · '+key);return await res.json()}
+async function getObject(path){const url=host+'/'+path.split('/').map(encodeURIComponent).join('/');const res=await fetch(url,{mode:'cors'});if(!res.ok)throw Error('HTTP '+res.status+' · '+path);return res.json()}
+function collection(x){if(!x||x.type!=='FeatureCollection')throw Error('GeoJSON không hợp lệ');return x.features.filter(f=>f?.geometry&&['Polygon','MultiPolygon'].includes(f.geometry.type))}
 async function loadAdmin(){
 try{
-if(!host.startsWith('https://'))throw Error('Thiếu Public URL R2 trong config.js');
-$('adminload').textContent='Đang tải 34 tỉnh/thành…';
-const raw=await getObject(window.CLIPMAP_CONFIG.provinceObjectPath);
-provinceFeatures=normalizeAdmin(raw);
-if(!provinceFeatures.length)throw Error('Không tìm thấy polygon tỉnh/thành');
-provinceNames=uniqueSorted(provinceFeatures.map(lookupProvince));
-if(!provinceNames.length)throw Error('Không tìm thấy cột tên tỉnh; cần kiểm tra thuộc tính của GeoJSON');
-adminFeatures=provinceFeatures;adminReady=true;
-populateSelect('province',provinceNames,'Chọn tỉnh/thành');populateSelect('commune',[],'Chọn tỉnh trước');
-$('adminload').textContent='Đã tải '+provinceNames.length+' tỉnh/thành · cấp xã tải khi chọn tỉnh';
-status('Sẵn sàng cắt ranh giới tỉnh/thành.');
-}catch(err){adminReady=false;$('adminload').textContent='Chưa tải được tỉnh/thành';status('Chưa tải được ranh giới: '+err.message)}
+$('adminload').textContent='Đang tải chỉ mục hành chính…';
+const idx=await getObject(window.CLIPMAP_CONFIG.indexObjectPath||'index.json');
+if(idx.schema!=='clipmap-r2-index-v1'||!Array.isArray(idx.provinces)||!Array.isArray(idx.wards))throw Error('Sai cấu trúc index.json');
+if(!idx.provinces.length||!idx.wards.length)throw Error('index.json không có dữ liệu');
+const codes=new Set(idx.provinces.map(p=>String(p.id)));
+if(idx.wards.some(w=>!codes.has(String(w.provinceId))))throw Error('Mã tỉnh trong index không khớp');
+provinceIndex=idx.provinces;wardsIndex=idx.wards;provinceByName=new Map(idx.provinces.map(p=>[p.name,p]));adminReady=true;
+populateSelect('province',provinceIndex,'Chọn tỉnh/thành');
+populateSelect('commune',[],'Chọn tỉnh trước');
+$('adminload').textContent='Đã lập chỉ mục '+provinceIndex.length+' tỉnh/thành · '+wardsIndex.length+' xã/phường';
+status('Đã tải chỉ mục, chưa cần tải các polygon.');
+}catch(err){
+adminReady=false;
+$('adminload').textContent='Chưa có chỉ mục mới trên R2';
+status('Cần tải index.json và 34 tệp vào R2: '+err.message);
 }
-async function ensureWards(){
-if(wardFeatures)return wardFeatures;
-if(wardPromise)return wardPromise;
-wardPromise=(async()=>{
-$('adminload').textContent='Đang tải dữ liệu cấp xã (193 MB), vui lòng đợi…';
-const raw=await getObject(window.CLIPMAP_CONFIG.wardObjectPath);
-wardFeatures=normalizeAdmin(raw);raw.features=null;
-$('adminload').textContent='Đã tải '+provinceNames.length+' tỉnh/thành và '+wardFeatures.length+' polygon cấp xã';
-return wardFeatures;
-})();
-try{return await wardPromise}catch(err){wardPromise=null;throw err}
 }
-async function resetCommune(){
-const p=$('province').value;
-populateSelect('commune',[],p?'Đang tải cấp xã…':'Chọn tỉnh trước');$('clipadmin').disabled=!p;
-if(!p)return;
+function resetCommune(){
+const pid=$('province').value;
+const filtered=wardsIndex.filter(w=>String(w.provinceId)===pid);
+populateSelect('commune',filtered,'Toàn bộ tỉnh/thành');
+$('clipadmin').disabled=!pid;
+status(pid?'Có '+filtered.length+' xã/phường. Chỉ tải polygon khi bấm Cắt.':'Chọn tỉnh/thành.');
+}
+$('province').onchange=resetCommune;
+async function getShard(pid){
+if(shardCache.has(pid))return shardCache.get(pid);
+const p=provinceIndex.find(p=>String(p.id)===pid);
+if(!p)throw Error('Không tìm thấy tỉnh');
+if(!p.path||!/^provinces\/[A-Za-z0-9_-]+\.geojson$/.test(p.path))throw Error('Đường dẫn shard không hợp lệ');
+if(shardLoading&&shardLoading.pid!==pid)shardLoading.controller.abort();
+const controller=new AbortController();
+shardLoading={pid,controller};
+const url=host+'/'+p.path.split('/').map(encodeURIComponent).join('/');
+const res=await fetch(url,{signal:controller.signal,mode:'cors'});
+if(!res.ok)throw Error('HTTP '+res.status+' · '+p.path);
+const geo=await res.json(),features=collection(geo);
+shardCache.set(pid,features);
+if(shardCache.size>3)shardCache.delete(shardCache.keys().next().value);
+return features;
+}
+$('clipadmin').onclick=async()=>{
+if(!adminReady)return status('Cần tải index.json lên R2.');
+const pid=$('province').value,wid=$('commune').value;if(!pid)return status('Chọn tỉnh/thành.');
 try{
-const wards=await ensureWards();
-if($('province').value!==p)return;
-const pf=provinceFeatures.find(f=>lookupProvince(f)===p);
-const code=pf?getProp(pf,provinceCodes):'';
-let sub=wards.filter(f=>locateWardProvince(f)===p||(code&&getProp(f,wardProvinceCodes)===code));
-if(!sub.length){status('Không tìm thấy mã liên kết xã/tỉnh: có thể chọn cắt cấp tỉnh.');populateSelect('commune',[],'Dữ liệu cấp xã chưa ghép được');return;}
-const communes=uniqueSorted(sub.map(f=>getProp(f,communeKeys)));
-populateSelect('commune',communes,'Toàn bộ tỉnh/thành');status('Đã tải '+communes.length+' đơn vị cấp xã của '+p);
-}catch(err){populateSelect('commune',[],'Không tải được cấp xã');status('Không thể tải cấp xã: '+err.message)}
-}
-$('province').onchange=()=>{resetCommune()};
-$('clipadmin').onclick=()=>{
- if(!adminReady)return status('Cần tải dữ liệu hành chính trước');
- const p=$('province').value,c=$('commune').value;if(!p)return status('Chọn tỉnh/thành');
- const f=c?(wardFeatures||[]).filter(x=>(locateWardProvince(x)===p||getProp(x,wardProvinceCodes)===getProp(provinceFeatures.find(y=>lookupProvince(y)===p)||{},provinceCodes))&&getProp(x,communeKeys)===c):provinceFeatures.filter(x=>lookupProvince(x)===p);
- if(!f.length)return status('Không có polygon trùng đơn vị được chọn');
- try{select({type:'FeatureCollection',features:f});}catch(e){status(e.message);}
+$('clipadmin').disabled=true;status('Đang tải hình học của tỉnh đã chọn…');
+const fs=await getShard(pid);
+const p=provinceIndex.find(p=>String(p.id)===pid);
+let selectedFeatures=wid?fs.filter(f=>{
+const props=f.properties||{};
+const id=String(props.ma_xa??props.MA_XA??props.maxa??props.MaXa??props.code??props.CODE??props.ward_code??props.MaDVHC??props.ma_dvhc??props.id??'');
+const name=String(props.ten_xa??props.Ten_Xa??props.TEN_XA??props.xa??props.phuong??props.commune??props.commune_name??props.NAME_2??props.TENXA??props.tenXa??props.name??props.Name??props.NAME??props.TEN??props.Ten??props.ten??props.ward_name??props.wardName??'');
+const record=wardsIndex.find(w=>String(w.id)===wid&&String(w.provinceId)===pid);
+return id===wid||(record&&record.name===name);
+}):fs;
+if(!selectedFeatures.length)throw Error('Không ghép được polygon xã với mã trong chỉ mục');
+select({type:'FeatureCollection',features:selectedFeatures});status('Đã cắt '+(wid?'xã/phường':'tỉnh/thành')+': '+p.name);
+}catch(err){if(err.name!=='AbortError')status('Không thể cắt: '+err.message)}finally{$('clipadmin').disabled=false}
 };
 init();
 loadAdmin();

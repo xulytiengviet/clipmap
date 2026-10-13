@@ -142,10 +142,23 @@ const host=ADMIN_R2_PUBLIC_URL.replace(/\/+$/,''),file=ADMIN_R2_OBJECT_PATH.repl
 try{
  if(!/^https:\/\/[^/]+$/.test(host))throw Error('Thiếu Public URL R2 trong config.js');
  if(!file||file.includes('..')||file.includes('?'))throw Error('Chưa cấu hình đúng đường dẫn GeoJSON trong config.js');
- status('Đang tải ranh giới từ R2…');const res=await fetch(host+'/'+file,{mode:'cors'});if(!res.ok)throw Error('HTTP '+res.status);const raw=await res.json();const fs=normalizeAdmin(raw);if(!fs.length)throw Error('Không tìm thấy Polygon trong FeatureCollection');
+ status('Đang tìm dữ liệu hành chính trên R2…');
+ const candidates=[file,'ranhgioi.geojson','ranhgioi.json','tinh.geojson','tinh_2025.geojson','VN_Dia_Phan_Tinh_2025.geojson','hanhchinh.geojson','admin.geojson','data/ranhgioi.geojson','data/tinh.geojson'];
+ let raw=null,found='',lastCode='';
+ for(const candidate of [...new Set(candidates)]){
+   try{
+     const res=await fetch(host+'/'+candidate,{mode:'cors',cache:'no-cache'});
+     lastCode=String(res.status);
+     if(!res.ok)continue;
+     const candidateData=await res.json();
+     if(normalizeAdmin(candidateData).length){raw=candidateData;found=candidate;break}
+   }catch(e){lastCode=e.message}
+ }
+ if(!raw)throw Error('Không tìm thấy GeoJSON công khai trong các đường dẫn đã thử (mã cuối: '+lastCode+'). Cần đúng tên tệp trong R2 → Objects.');
+ const fs=normalizeAdmin(raw);if(!fs.length)throw Error('Không tìm thấy Polygon trong FeatureCollection');
  adminFeatures=fs;provinceNames=uniqueSorted(fs.map(f=>getProp(f,provinceKeys)));if(!provinceNames.length)throw Error('Không tìm thấy thuộc tính tên tỉnh; kiểm tra provinceKeys trong mã.');
  populateSelect('province',provinceNames,'Chọn tỉnh/thành');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;adminReady=true;
- $('adminload').textContent='Đã tải '+fs.length+' ranh giới · '+provinceNames.length+' tỉnh/thành';status('Đã đồng bộ dữ liệu hành chính.');
+ $('adminload').textContent='Đã tải '+fs.length+' ranh giới · '+provinceNames.length+' tỉnh/thành · '+found;status('Đã đồng bộ dữ liệu hành chính.');
 }catch(err){adminReady=false;adminFeatures=[];populateSelect('province',[],'Chưa tải dữ liệu');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;$('adminload').textContent='Chưa kết nối dữ liệu hành chính';status('Chưa tải được ranh giới: '+err.message);}
 };
 $('clipadmin').onclick=()=>{

@@ -130,7 +130,7 @@ try{
 };
 function getProp(f,keys){const p=f.properties||{};for(const k of keys){const v=p[k];if(v!=null&&String(v).trim())return String(v).trim()}return ''}
 const provinceKeys=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','name','Name','NAME','TEN','ten'];
-let provinceFeatures=[],wardsIndex=[],provinceIndex=[],shardCache=new Map(),provinceByName=new Map(),selectedWardId='',shardLoading=null;
+let provinceFeatures=[],wardsIndex=[],provinceIndex=[],shardCache=new Map(),provinceByName=new Map(),selectedWardId='',shardLoading=null,indexPrefix='';
 function uniqueSorted(a){return [...new Set(a.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'))}
 function populateSelect(id,entries,placeholder){const el=$(id);el.replaceChildren(new Option(placeholder,''));for(const e of entries)el.add(new Option(e.name,e.id));el.disabled=!entries.length}
 const host=ADMIN_R2_PUBLIC_URL.endsWith('/')?ADMIN_R2_PUBLIC_URL.slice(0,-1):ADMIN_R2_PUBLIC_URL;
@@ -148,10 +148,11 @@ if(idx.schema!=='clipmap-r2-index-v1'||!Array.isArray(idx.provinces)||!Array.isA
 if(!idx.provinces.length||!idx.wards.length)throw Error('index.json không có dữ liệu');
 const codes=new Set(idx.provinces.map(p=>String(p.id)));
 if(idx.wards.some(w=>!codes.has(String(w.provinceId))))throw Error('Mã tỉnh trong index không khớp');
+indexPrefix=indexPath.includes('/')?indexPath.slice(0,indexPath.lastIndexOf('/')+1):'';
 provinceIndex=idx.provinces;wardsIndex=idx.wards;provinceByName=new Map(idx.provinces.map(p=>[p.name,p]));adminReady=true;
 populateSelect('province',provinceIndex,'Chọn tỉnh/thành');
 populateSelect('commune',[],'Chọn tỉnh trước');
-$('adminload').textContent='Đã lập chỉ mục '+provinceIndex.length+' tỉnh/thành · '+wardsIndex.length+' xã/phường'+(indexPath==='provinces/index.json'?' · cần chuyển index.json lên thư mục gốc':'');
+$('adminload').textContent='Đã lập chỉ mục '+provinceIndex.length+' tỉnh/thành · '+wardsIndex.length+' xã/phường'+(indexPath==='provinces/index.json'?' · cấu trúc lồng thư mục':'');
 status('Đã tải chỉ mục, chưa cần tải các polygon.');
 }catch(err){
 adminReady=false;
@@ -175,10 +176,16 @@ if(!p.path||!/^provinces\/[A-Za-z0-9_-]+\.geojson$/.test(p.path))throw Error('Đ
 if(shardLoading&&shardLoading.pid!==pid)shardLoading.controller.abort();
 const controller=new AbortController();
 shardLoading={pid,controller};
-const url=host+'/'+p.path.split('/').map(encodeURIComponent).join('/');
-const res=await fetch(url,{signal:controller.signal,mode:'cors'});
-if(!res.ok)throw Error('HTTP '+res.status+' · '+p.path);
-const geo=await res.json(),features=collection(geo);
+const paths=[p.path,indexPrefix+p.path,p.path.replace(/^provinces\//,'')];
+let geo=null,lastError='';
+for(const path of [...new Set(paths)]){
+ const url=host+'/'+path.split('/').map(encodeURIComponent).join('/');
+ const res=await fetch(url,{signal:controller.signal,mode:'cors'});
+ if(!res.ok){lastError='HTTP '+res.status+' · '+path;continue;}
+ geo=await res.json();break;
+}
+if(!geo)throw Error('Không tìm thấy polygon ('+lastError+'). Kiểm tra đường dẫn trong R2.');
+const features=collection(geo);
 shardCache.set(pid,features);
 if(shardCache.size>3)shardCache.delete(shardCache.keys().next().value);
 return features;

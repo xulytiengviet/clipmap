@@ -31,3 +31,26 @@ Nếu kiểm tra đủ 34 tỉnh và 3.321 đơn vị thất bại, hãy kiểm 
 Mở Cloudflare R2 → `ranhgioi` → Objects và tải **nội dung** của `dist-r2` (không bọc thêm thư mục): `index.json` và 34 file trong `provinces/`. Giữ nguyên tên object key và thiết lập CORS đọc GET/HEAD từ https://xulytiengviet.github.io.
 
 **Lưu ý:** Việc cập nhật mã nguồn GitHub Pages không tự chuyển đổi hay tải các file R2. Chừng nào `index.json` chưa hiện diện trên public R2, ClipMap sẽ hiển thị lỗi thiếu chỉ mục, thay vì tải tệp 193 MB cũ.
+
+
+## Bộ dữ liệu R2 đã chuẩn hóa (13/10/2026)
+
+Hai GeoJSON nguồn được chuẩn hóa theo các trường `ma_tinh`, `ten_tinh`, `ma`, `tenhc`, `loai`, và xuất thành **34 shard cấp tỉnh** chứa tổng cộng **3.321** polygon cấp xã. Chỉ mục `index.json` theo schema `clipmap-r2-index-v1` liệt kê 34 tỉnh + 3.321 xã, tương thích mã hiện tại của ClipMap.
+
+Cấu trúc Object Key trên Cloudflare R2 bucket `ranhgioi`:
+
+```
+index.json
+provinces/01.geojson
+provinces/04.geojson
+...
+provinces/96.geojson
+```
+
+Số hiệu file là `ma_tinh` của GeoJSON gốc, **không phải** số thứ tự 01–34. Giải nén gói ZIP rồi tải `index.json` lên gốc bucket và nội dung `provinces/` lên đúng prefix `provinces/`. Tệp nguồn `VietnamWardBoundary2025.geojson` cũ không còn được tải khi chọn đơn vị hành chính.
+
+Các URL cần kiểm tra sau khi upload:
+- https://pub-7dd53e3ae939474d8bbfe3cec7145b16.r2.dev/index.json
+- https://pub-7dd53e3ae939474d8bbfe3cec7145b16.r2.dev/provinces/01.geojson
+
+Không đưa API token hoặc secret của Cloudflare vào code front-end/GitHub.

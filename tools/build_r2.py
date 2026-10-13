@@ -7,12 +7,12 @@ Usage:
  Upload *contents* of dist-r2/ to the root of the R2 bucket 'ranhgioi'.
 """
 import argparse, collections, json, pathlib, re, sys, unicodedata
-P_NAME=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','name_1','name','Name','NAME','TEN','Ten','ten']
-W_NAME=['ten_xa','Ten_Xa','TEN_XA','xa','phuong','commune','commune_name','NAME_2','TENXA','tenXa','name_2','name','Name','NAME','TEN','Ten','ten','ward_name','wardName','TenDVHC','ten_dvhc']
-P_CODE=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode']
-W_P_NAME=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','ten_tp']
+P_NAME=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','name_1','name','Name','NAME','TEN','Ten','ten','tentinh']
+W_NAME=['ten_xa','Ten_Xa','TEN_XA','xa','phuong','commune','commune_name','NAME_2','TENXA','tenXa','name_2','name','Name','NAME','TEN','Ten','ten','ward_name','wardName','TenDVHC','ten_dvhc','tenhc']
+P_CODE=['ma_tinh','MATINH','maTinh','province_code','code_1','MaTinh','MA_TINH','MATP','ma_tp','provinceCode','matinh']
+W_P_NAME=['ten_tinh','Ten_Tinh','TEN_TINH','tinh','province','province_name','NAME_1','TENTINH','tenTinh','ten_tinh_thanh','ten_tp','tentinh']
 W_P_CODE=P_CODE
-W_CODE=['ma_xa','MA_XA','maxa','MaXa','code','CODE','ward_code','MaDVHC','ma_dvhc','id']
+W_CODE=['ma_xa','MA_XA','maxa','MaXa','code','CODE','ward_code','MaDVHC','ma_dvhc','id','ma','matinhxa']
 def val(p,keys):
  for k in keys:
   v=p.get(k)

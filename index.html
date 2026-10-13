@@ -156,6 +156,7 @@ $('clipadmin').onclick=()=>{
  try{select({type:'FeatureCollection',features:f});}catch(e){status(e.message);}
 };
 init();
+if(ADMIN_R2_PUBLIC_URL){$('loadadmin').click();}
 map.on(L.Draw.Event.CREATED,e=>{const geometry=e.layer.toGeoJSON();try{select(geometry);}catch(err){status(err.message);}});
 })();
 </script></body></html>

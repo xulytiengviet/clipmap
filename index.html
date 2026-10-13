@@ -10,7 +10,7 @@
 <div class="layout"><aside>
 
 <section class="group"><h3>01 · Lớp bản đồ</h3><label for="basemap">Bản đồ nền</label><select id="basemap"><option value="sat" selected>Vệ tinh Esri World Imagery</option></select></section>
-<section class="group"><h3>02 · Cắt nhanh hành chính</h3><button class="full primary" id="loadadmin">↻ Tải dữ liệu ranh giới R2</button><label for="province">34 tỉnh/thành</label><select id="province" disabled><option>Chưa tải dữ liệu R2</option></select><label for="commune">3.321 xã/phường/đặc khu</label><select id="commune" disabled><option>Chọn tỉnh trước</option></select><button class="full" id="clipadmin" disabled>✂ Cắt theo đơn vị đã chọn</button></section><section class="group"><h3>03 · Ranh giới tự do</h3><label for="file">Tải ranh giới (GeoJSON hoặc VN-2000 JSON)</label><label for="crsin">Hệ tọa độ tệp nhập</label><select id="crsin"><option value="EPSG:4326">WGS84 (GeoJSON chuẩn)</option><option value="EPSG:3405">VN-2000 / UTM 48N (EPSG:3405)</option><option value="EPSG:3406">VN-2000 / UTM 49N (EPSG:3406)</option></select><input id="file" type="file" accept=".json,.geojson,application/json"><div class="actions"><button id="draw">✎ Vẽ vùng</button><button id="clear">✕ Xóa vùng</button></div><div id="featureinfo" class="pill" hidden></div></section>
+<section class="group"><h3>02 · Cắt nhanh hành chính</h3><div id="adminload" class="hint" role="status">Đang kiểm tra dữ liệu hành chính…</div><label for="province">34 tỉnh/thành</label><select id="province" disabled><option>Chưa tải dữ liệu R2</option></select><label for="commune">3.321 xã/phường/đặc khu</label><select id="commune" disabled><option>Chọn tỉnh trước</option></select><button class="full" id="clipadmin" disabled>✂ Cắt theo đơn vị đã chọn</button></section><section class="group"><h3>03 · Ranh giới tự do</h3><label for="file">Tải ranh giới (GeoJSON hoặc VN-2000 JSON)</label><label for="crsin">Hệ tọa độ tệp nhập</label><select id="crsin"><option value="EPSG:4326">WGS84 (GeoJSON chuẩn)</option><option value="EPSG:3405">VN-2000 / UTM 48N (EPSG:3405)</option><option value="EPSG:3406">VN-2000 / UTM 49N (EPSG:3406)</option></select><input id="file" type="file" accept=".json,.geojson,application/json"><div class="actions"><button id="draw">✎ Vẽ vùng</button><button id="clear">✕ Xóa vùng</button></div><div id="featureinfo" class="pill" hidden></div></section>
 <section class="group"><h3>04 · Hiệu ứng cắt</h3><label for="opacity">Làm mờ vùng ngoài <span id="opval">78%</span></label><input id="opacity" type="range" min="0" max="100" value="78"><label for="color">Màu đường viền</label><input id="color" type="color" value="#db9a26"><label for="weight">Độ dày viền <span id="wtval">2 px</span></label><input id="weight" type="range" min="1" max="8" value="2"><label><input id="maskon" type="checkbox" checked> Bật mặt nạ ngoài ranh giới</label></section>
 <section class="group"><h3>05 · Xuất kết quả</h3><button class="primary full" id="png">⬇ Xuất PNG bản đồ</button><label for="crsout">Hệ tọa độ xuất</label><select id="crsout"><option value="EPSG:3405">VN-2000 / UTM 48N</option><option value="EPSG:3406">VN-2000 / UTM 49N</option><option value="EPSG:4326">WGS84 / GeoJSON</option></select><button class="full" id="geojson">⬇ Xuất dữ liệu ranh giới</button><button class="full" id="zoom">⌖ Phóng đến vùng cắt</button></section>
 <div class="foot">© 2026 Long Ngo · MIT.</div>
@@ -137,16 +137,16 @@ function populateSelect(id,values,first){$(id).innerHTML='';const o=new Option(f
 function normalizeAdmin(raw){const feats=raw.type==='FeatureCollection'?raw.features:raw.type==='Feature'?[raw]:[];return feats.filter(f=>f&&f.geometry&&['Polygon','MultiPolygon'].includes(f.geometry.type));}
 function resetCommune(){const p=$('province').value;const communes=uniqueSorted(adminFeatures.filter(f=>getProp(f,provinceKeys)===p).map(f=>getProp(f,communeKeys)));populateSelect('commune',communes,communes.length?'Toàn bộ tỉnh/thành':'Không có cấp xã trong dữ liệu');$('clipadmin').disabled=!p;}
 $('province').onchange=()=>{resetCommune();};
-$('loadadmin').onclick=async()=>{
+async function loadAdmin(){
 const host=ADMIN_R2_PUBLIC_URL.replace(/\/+$/,''),file=ADMIN_R2_OBJECT_PATH.replace(/^\/+/, '');
 try{
- if(!/^https:\/\/[^/]+$/.test(host))throw Error('Chưa cấu hình URL đọc công khai trong config.js');
+ if(!/^https:\/\/[^/]+$/.test(host))throw Error('Thiếu Public URL R2 trong config.js');
  if(!file||file.includes('..')||file.includes('?'))throw Error('Chưa cấu hình đúng đường dẫn GeoJSON trong config.js');
  status('Đang tải ranh giới từ R2…');const res=await fetch(host+'/'+file,{mode:'cors'});if(!res.ok)throw Error('HTTP '+res.status);const raw=await res.json();const fs=normalizeAdmin(raw);if(!fs.length)throw Error('Không tìm thấy Polygon trong FeatureCollection');
  adminFeatures=fs;provinceNames=uniqueSorted(fs.map(f=>getProp(f,provinceKeys)));if(!provinceNames.length)throw Error('Không tìm thấy thuộc tính tên tỉnh; kiểm tra provinceKeys trong mã.');
  populateSelect('province',provinceNames,'Chọn tỉnh/thành');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;adminReady=true;
- status('Đã tải '+fs.length+' polygon / '+provinceNames.length+' tỉnh. Kiểm tra đủ 34 tỉnh và 3.321 xã theo dữ liệu nguồn.');
-}catch(err){adminReady=false;adminFeatures=[];populateSelect('province',[],'Chưa tải dữ liệu');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;status('Chưa tải được ranh giới: '+err.message);}
+ $('adminload').textContent='Đã tải '+fs.length+' ranh giới · '+provinceNames.length+' tỉnh/thành';status('Đã đồng bộ dữ liệu hành chính.');
+}catch(err){adminReady=false;adminFeatures=[];populateSelect('province',[],'Chưa tải dữ liệu');populateSelect('commune',[],'Chọn tỉnh trước');$('clipadmin').disabled=true;$('adminload').textContent='Chưa kết nối dữ liệu hành chính';status('Chưa tải được ranh giới: '+err.message);}
 };
 $('clipadmin').onclick=()=>{
  if(!adminReady)return status('Cần tải dữ liệu hành chính trước');
@@ -156,7 +156,7 @@ $('clipadmin').onclick=()=>{
  try{select({type:'FeatureCollection',features:f});}catch(e){status(e.message);}
 };
 init();
-if(ADMIN_R2_PUBLIC_URL){$('loadadmin').click();}
+loadAdmin();
 map.on(L.Draw.Event.CREATED,e=>{const geometry=e.layer.toGeoJSON();try{select(geometry);}catch(err){status(err.message);}});
 })();
 </script></body></html>
